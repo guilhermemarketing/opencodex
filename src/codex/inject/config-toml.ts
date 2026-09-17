@@ -61,6 +61,17 @@ export const DEFAULT_CODEX_PROVIDER_DISPLAY_NAME = "OpenCodex Proxy";
 /** Longest label accepted, matching the display-label policy used for provider names. */
 const MAX_CODEX_PROVIDER_DISPLAY_NAME_LENGTH = 128;
 
+/** Would this label put a control character into config.toml? */
+function hasControlCharacter(value: string): boolean {
+  // Checked by code point rather than by a control-character regex, which needs a lint
+  // suppression this repository's hygiene gate rejects — and which reads no more clearly.
+  for (const character of value) {
+    const code = character.codePointAt(0) ?? 0;
+    if (code < 0x20 || code === 0x7f) return true;
+  }
+  return false;
+}
+
 /**
  * Which label to write, given whatever the config holds.
  *
@@ -76,17 +87,6 @@ const MAX_CODEX_PROVIDER_DISPLAY_NAME_LENGTH = 128;
  * label. A control character or an over-long value is rejected for the same reason, because
  * `tomlString` would faithfully encode something Codex may still reject.
  */
-/** Would this label put a control character into config.toml? */
-function hasControlCharacter(value: string): boolean {
-  // Checked by code point rather than by a control-character regex, which needs a lint
-  // suppression this repository's hygiene gate rejects — and which reads no more clearly.
-  for (const character of value) {
-    const code = character.codePointAt(0) ?? 0;
-    if (code < 0x20 || code === 0x7f) return true;
-  }
-  return false;
-}
-
 export function resolveCodexProviderDisplayName(configured?: string): string {
   const trimmed = (configured ?? "").trim();
   if (!trimmed) return DEFAULT_CODEX_PROVIDER_DISPLAY_NAME;
