@@ -124,7 +124,7 @@ describe("Console Go transient upload refusal recovery", () => {
     expect(response.status).toBe(400);
     expect(await response.text()).toBe(UPLOAD_REFUSAL);
     expect(sends).toBe(1);
-    expect(logCtx.activeAttempt?.recoveryKinds).toBeUndefined();
+    expect(logCtx.activeAttempt?.recoveryKinds).toEqual([]);
   });
 
   test("does not replay a different 400 from the same wire", async () => {
