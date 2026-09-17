@@ -252,6 +252,16 @@ Pool mode routes across main plus added Codex credentials. Key rules:
   account targets are not advertised, and private account ids never become catalog labels.
   `codexAccountPickerEnabled: false` hides generated rows without deleting exact routing bindings;
   an omitted flag preserves the established behavior of a nonempty hand-written selector map.
+- **An omitted Luna Reserve row explains itself once.** The Reserve projection is
+  account-qualified (`<selector>/gpt-reserve`), so it cannot be written without a selector that
+  targets the main Codex account, and a fresh authless install has an empty selector map. Because
+  an omission has no row to carry a reason, catalog sync emits one warn-once line naming the
+  cause — absent canonical OpenAI provider, explicitly disabled picker, empty selector map, or a
+  map with no main-account target — and the action that restores it
+  (`src/codex/catalog/reserve-warn.ts`). It is scoped to an install where authless Codex Desktop
+  routing is effective, so an install that never opted in is never told about a Reserve row it
+  did not ask for. An install that stores the flag where it cannot take effect is a different
+  silence, reported as `inertReason` by `describeCodexDesktopSwitches` rather than repeated here.
 - **Rotation is sticky.** A conversation stays on its selected account while that account is
   usable; failure moves it, success does not (`src/codex/pool-rotation.ts`).
 - **A transient hold is probed half-open, never opened all at once.** While a bound account is

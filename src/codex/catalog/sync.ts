@@ -44,6 +44,12 @@ export {
   resetGatedNativeSuppressionWarningsForTests,
 } from "./gated-native-warn";
 export {
+  reserveCatalogSuppressionReason,
+  resetReserveSuppressionWarningsForTests,
+  warnReserveSuppressedOnce,
+} from "./reserve-warn";
+export type { ReserveCatalogSuppressionReason, ReserveSuppressionInput } from "./reserve-warn";
+export {
   syncCatalogModels,
   invalidateCodexModelsCache,
   invalidateCodexModelsCacheWithPermit,
