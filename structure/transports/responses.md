@@ -215,6 +215,15 @@ alone never opt a gateway in.
 and before the `/v1/*` guard. Unknown `/v1/*` paths return JSON 404 errors instead of falling through
 to GUI static serving.
 
+Both entry points apply the Reserve opt-in refusal in
+[providers/openai-tiers.md](../providers/openai-tiers.md#public-provider-contract) before auth, host-circuit
+admission or any upstream byte. `src/server/responses/request-prepare.ts` applies it beside the
+existing Reserve helper refusal, restricted to the native `responses` inbound wire and to
+non-terminal-helper turns: enabling the opt-in would not make a terminal vision or search helper
+work, and a `gpt-reserve` selector arriving over the Chat or Anthropic wire is an operator-authored
+route. `src/server/responses/compact.ts` repeats it against the resolved route model, because its
+native branch dispatches without replaying through `handleResponses`.
+
 Combo compaction recall uses accepted completed-response callbacks to record the final client-visible
 model and originating combo target. The existing child callback gate defers publication until an
 attempt is accepted and drops discarded/failed attempts. Both compaction entry points preserve

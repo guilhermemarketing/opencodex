@@ -246,6 +246,19 @@ ordinary Luna or another account. Native vision/search helpers and standalone se
 under this compatibility opt-in; ordinary helper/default behavior is unchanged.
 Upstream remains the entitlement authority.
 
+`isCodexReserveOptInMissing` in `src/codex/loopback-target.ts` is the strict complement of
+`isCodexReserveRequestEligible` for the opt-in reason alone: exact `gpt-reserve`, a non-client role,
+loopback admission, and the flag off. Callers classify the destination as canonical forward first.
+A request matching it is refused locally with HTTP 400 `invalid_request_error` naming
+`codexDesktopAuthless` and `ocx system settings --desktop-authless on`, carrying no account
+identifier, credential or request body, and no retry semantics. It is not a cooldown and does not use
+`CodexReserveUnavailableError`, whose `CodexAccountCooldownError` base maps to 429
+`rate_limit_error` through `cooldownErrorResponse` and would restate the upstream verdict this
+refusal exists to replace. The other two ineligibility reasons, a client role and a non-loopback
+admission source, still forward unchanged, as does a `gpt-reserve` selector an operator has aliased
+or routed onto a noncanonical provider. Enabling the flag restores eligibility rather than the
+refusal, so the two predicates can never both hold.
+
 ### Quota cache and short-window history
 
 `src/codex/quota.ts` drops an omitted account-level short tuple from the display/rotation
