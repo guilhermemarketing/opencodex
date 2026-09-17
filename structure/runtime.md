@@ -156,6 +156,20 @@ Callers must not replace the latter with the former merely to avoid the Windows 
 probe. Expected-PID and snapshot removal helpers are the TOCTOU boundary when a replacement proxy
 can write new state during a probe.
 
+Ownership of a pending-teardown receipt is decided by that same identity rule. The receipt records
+the PID that accepted the obligation, and `handleStop` treats an owner as still running only when
+the live PID is verifiably an opencodex process (`isProcessAlive` composed with
+`isLikelyOcxProcess`). Bare liveness is not sufficient and is a regression here: the OS reuses PID
+numbers, so once the owner exits an unrelated process can inherit its number, and a cheap probe
+then reports the stop as still in flight for as long as that process lives. The receipt is filtered
+out of the recovery loop and is never recovered, quarantined, or even mentioned, while both updater
+gates keep seeing an outstanding obligation — a permanent fail-closed `teardown-outstanding` abort
+with no proxy running and a dead owner (#4897). `isLikelyOcxProcess` asks the broader question than
+`verifyPidIdentity`, without the `start` verb, because a receipt owner is an `ocx stop` or the
+`ocx update` worker that drove it rather than the proxy. Recognizing a receipt as abandoned only
+admits it to recovery; a valid receipt must still prove its recorded endpoint is down before
+anything is restored, and the package launcher still decides nothing itself.
+
 Port reclamation must honor a rejected OCX verifier result even for a PID captured before stop or
 update. A rejected live holder prevents both termination and TCP-row deletion for that scan; later
 scans may proceed if verification succeeds or the holder exits. The allowlist narrows termination
