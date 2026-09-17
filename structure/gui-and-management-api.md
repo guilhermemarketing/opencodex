@@ -188,6 +188,23 @@ it. The matching CLI is `ocx account priority <provider> <id|main> [<value>]`, r
 when the value is omitted. Ordering invariants live in
 [`openai-tiers.md`](providers/openai-tiers.md).
 
+## The client role owns no management plane
+
+A connected client machine runs `src/client/machine-listener.ts` instead of the standalone server.
+It binds the address the standalone proxy would (`port ?? config.port ?? 10100`) and serves
+`GET /healthz`, `/readyz`, the packaged GUI/SPA routes, and `/api/machine/*`. Every other `/api/*`
+and `/v1/*` path is refused before dispatch with a JSON 404 naming the method and path. There is no
+second management port on such a machine: management rides the same listener a standalone or hub
+install runs, so a connected client has no `/api/*` management surface at all.
+
+The discriminator is `role` on `/healthz` and `/readyz`. The machine listener reports
+`role: "client"`; the standalone and hub server omit the field. `src/server/proxy-liveness.ts` parses
+it into `HealthzIdentity.role` and carries it on `LiveProxy.role`. `isOpencodexHealthz` still accepts
+a client-role body: liveness answers "is one of our processes listening here", which is what `ocx stop`,
+orphan cleanup, and duplicate-start avoidance need, and narrowing it would make them blind to a real
+opencodex process and let them shadow-start over it. Refusing the client role belongs to the caller
+that needs a management plane, which is the [CLI management client](config.md#management-backed-cli-commands-need-a-management-plane).
+
 ## Sidebar stop button
 
 The dashboard sidebar includes a stop button that calls `POST /api/stop`. The button shows a

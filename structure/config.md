@@ -370,6 +370,24 @@ Usage consumers preserve positive incomplete-history metadata as specified in [u
 `dropCodexSafetyBuffering` is an optional boolean, default false. Invalid API candidates reject;
 malformed persisted values stay disabled. It controls only the allowlisted client-output hints
 described in [Responses transport](transports/responses.md), not upstream policy or model selection.
+
+## Management-backed CLI commands need a management plane
+
+`src/cli/runtime-api.ts` is the single client every headless management subcommand calls through, so
+it owns the refusal as well as the request. `runtimeBaseUrl` resolves the live listener through
+`findLiveProxy`, and when that listener reports the client role — see
+[the client role owns no management plane](gui-and-management-api.md#the-client-role-owns-no-management-plane)
+— it refuses with `RuntimeApiError` status 503 instead of dialing it. The message names the port,
+states that the listener serves only the machine routes, points custom-model and other management
+edits at the hub the machine is connected to, and gives the on-machine alternative: edit
+`customModels` in `config.json`, then run `ocx sync`. The status is also the honest exit code, since
+`runCliAction` maps 404 to exit 4 and would otherwise report a missing record.
+
+A 404 body carrying both `method` and `path` is rendered as the route that listener does not serve,
+so any not-served-here answer stays legible rather than printing a bare token. `ocx models edit` in
+`src/cli/models-runtime.ts` narrows the opposite case: only a 404 without those keys is the
+management handler's own unknown-id answer, and it names the id and `ocx models list-custom`.
+
 ## Paginated history writer boundary
 
 `src/codex/history-provider.ts` refuses external writes to paginated or migration-capable history. `src/codex/inject.ts` checks affected rows and manifest-owned restore targets before and after config/profile/journal changes, including successful journal and fallback restores, and compensates detected migration. Failed config restore stops later catalog/history work and rolls back a coordinated remove transition. See the [history writer contract](codex-home.md#paginated-history-writer-boundary) for guarantees and concurrent-writer limits.
