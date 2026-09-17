@@ -141,6 +141,18 @@ Root TOML keys must be written before the first `[table]`. Re-injection strips t
 both shapes — opencodex blocks, injected root base-url overrides, stale root context-window
 overrides, and stale catalog paths — before rewriting, so switching between forms leaves no residue.
 
+The `name` field is the only presentation value in that table, and `codexProviderDisplayName`
+chooses it (default `OpenCodex Proxy`). `resolveCodexProviderDisplayName` in
+`src/codex/inject/config-toml.ts` is the single place that decides it, and every emitter goes
+through `buildProviderTableBlockForTarget` so the active table, the retained compatibility table,
+and the reference profile cannot disagree. Identity is deliberately not derived from it: routing
+resolves through the provider id `opencodex` in the root `model_provider` line and the
+`[model_providers.opencodex]` header, so a rename cannot reroute a thread or orphan a row that
+already names that id (#4810). The field can never be emitted empty or omitted — Codex rejects a
+provider with no name and rejects the whole config rather than one thread, which is strictly worse
+than the branding it would remove — so a blank, over-length, or control-character value falls back
+to the default instead of being written.
+
 Read-only doctor and project-routing diagnostics use a lightweight root/table TOML reader rather
 than mutating or normalizing the user's file. That reader must lexically skip both basic and literal
 multiline string bodies: instruction prose can contain key-shaped examples and `[table]` snippets,
