@@ -254,6 +254,30 @@ Codex display-cache expiry, retained main-policy evidence, and reset history fol
 
 Plan-based automatic exclusions leave native credential files untouched and preserve the native-main exemption in the [selection policy](providers/openai-tiers.md#automatic-pool-plan-exclusions).
 
+## Prompt text probe
+
+`src/codex/prompt-text-probe.ts` reports the prompt Codex assembles for the resolved Codex home. It
+runs `codex debug prompt-input` in that home, bounded in time and in bytes, maps each rendered section
+onto a layer, and takes no caller-supplied directory. Captured process output is never serialized
+back: a failure is a classified kind plus a fixed phrase and the resolved command.
+
+The base prompt is absent from that output, because Codex discards `base_instructions` before
+rendering `prompt.input`. It is read from configuration instead, and it is read before the subprocess
+starts, so an unresolved Codex runtime, a failed probe and a cancelled request all still answer with
+it. Precedence follows Codex: a `model_instructions_file` decides the answer whenever the key is set,
+including when the file it names is missing, blank or unreadable, and otherwise the selected model's
+catalog row supplies `base_instructions`, with `model_messages.instructions_template` as the fallback.
+Only the first form is reported as text Codex sends. A template is reported as a template and the
+legacy `base-instructions` layer slot carries no text for it: that slot has five coarse reasons and no
+representation, and its dialog labels every readable layer as text sent to the model.
+
+Each configured source is opened once, non-blocking, and read to at most the probe's byte ceiling,
+which is what keeps a FIFO, a device node or an oversized file from stalling or ballooning a
+synchronous request. The regular-file check reads the opened descriptor rather than the path, and the
+whole TOML document parses before any key from it is trusted, because Codex rejects a malformed
+config outright. Every failure is a reason on the response rather than an exception, so the
+management read degrades instead of returning an error page.
+
 ## Paginated history writer boundary
 
 `src/codex/history-provider.ts` rejects provider-history changes with `history_paginated_requires_native_writer` when a target begins with an ordinal-bearing record, later contains a paginated record after a legacy start (#4311), or declares `history_mode=paginated`. The first line alone is not sufficient: a rollout that started unnumbered and was later migrated is also refused. Apply, manifest-backed restore, and explicit legacy recovery preflight all selected targets before changing database rows or manifests. The append boundary checks again. Codex owns ordinal allocation and the live projection cursor; reading the last ordinal and appending N+1 is not safe concurrent coordination. Legacy unnumbered rollouts retain their existing behavior. This guard prevents the observed stable-format corruption; it does not implement native-writer integration.

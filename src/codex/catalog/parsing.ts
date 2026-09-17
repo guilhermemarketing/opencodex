@@ -255,12 +255,19 @@ export function readCodexCatalogPath(): string {
   return activeDefaultCatalogPath();
 }
 
-/** Resolve the configured catalog without consulting ambient CODEX_HOME again. */
-export function readCodexCatalogPathForHome(codexHome: string): string {
+/**
+ * Resolve the configured catalog without consulting ambient CODEX_HOME again.
+ *
+ * `configText` is for a caller that has already read that same `config.toml` under
+ * its own constraints - the prompt-text probe reads it bounded, on the request
+ * thread - so resolving the catalog does not cost a second, unbounded read of the
+ * file the caller is holding. Omitting it keeps the original behaviour.
+ */
+export function readCodexCatalogPathForHome(codexHome: string, configText?: string): string {
   try {
     const configPath = join(codexHome, "config.toml");
-    if (existsSync(configPath)) {
-      const toml = readFileSync(configPath, "utf-8");
+    if (configText !== undefined || existsSync(configPath)) {
+      const toml = configText ?? readFileSync(configPath, "utf-8");
       const path = readRootTomlString(toml, "model_catalog_json");
       if (path) return resolve(codexHome, path);
     }
