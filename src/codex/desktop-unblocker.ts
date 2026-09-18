@@ -82,6 +82,75 @@ export function patchWhamUsagePayload(rawJson: string): string {
 }
 
 /**
+ * Patches the stdio JSON-RPC account/rateLimits/read response to prevent
+ * the Desktop composer Send button from being grayed out on newer Codex versions.
+ */
+export function patchRateLimitsRpcPayload(rawJson: string): string {
+  try {
+    const msg = JSON.parse(rawJson);
+    const target = msg.result ?? msg;
+    if (target && typeof target === "object") {
+      if ("ordinaryUsageAllowed" in target) {
+        target.ordinaryUsageAllowed = true;
+      }
+      if (target.rateLimits?.primary) {
+        target.rateLimits.primary.usedPercent = 0;
+      }
+      if (target.rateLimits?.credits) {
+        target.rateLimits.credits.hasCredits = true;
+        target.rateLimits.credits.unlimited = true;
+        target.rateLimits.credits.balance = "1000";
+      }
+      if (target.rateLimitsByLimitId) {
+        for (const key of Object.keys(target.rateLimitsByLimitId)) {
+          const item = target.rateLimitsByLimitId[key];
+          if (item?.primary) item.primary.usedPercent = 0;
+          if (item?.rateLimitReachedType) item.rateLimitReachedType = null;
+        }
+      }
+      target.rateLimitUpsell = null;
+    }
+    return JSON.stringify(msg);
+  } catch {
+    return rawJson;
+  }
+}
+
+/**
+ * Removes workspaceRouting from the stdio JSON-RPC account/read response.
+ * This prevents Electron's internal routing resolver from overriding CODEX_API_BASE_URL
+ * and bypassing the loopback proxy on versions >= 0.155.0-alpha.5.
+ */
+export function patchAccountReadRpcPayload(rawJson: string): string {
+  try {
+    const msg = JSON.parse(rawJson);
+    const target = msg.result ?? msg;
+    if (target && typeof target === "object" && "workspaceRouting" in target) {
+      delete target.workspaceRouting;
+    }
+    return JSON.stringify(msg);
+  } catch {
+    return rawJson;
+  }
+}
+
+/**
+ * Spoofs userAgent in initialize response to force legacy-compatible routing behavior.
+ */
+export function patchInitializeRpcPayload(rawJson: string, legacyVersion = "0.155.0-alpha.2.6"): string {
+  try {
+    const msg = JSON.parse(rawJson);
+    const target = msg.result ?? msg;
+    if (target?.userAgent && typeof target.userAgent === "string") {
+      target.userAgent = target.userAgent.replace(/0\.155\.0-alpha\.\d+(\.\d+)?/, legacyVersion);
+    }
+    return JSON.stringify(msg);
+  } catch {
+    return rawJson;
+  }
+}
+
+/**
  * Resolve a client request target against the fixed loopback base. Returns `null` when the target
  * cannot be parsed or does not resolve to the loopback origin — an absolute-form or
  * protocol-relative target such as `//host/path` — so the caller answers 400 instead of forwarding it.

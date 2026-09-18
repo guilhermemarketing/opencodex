@@ -1,9 +1,16 @@
 import { describe, expect, test } from "bun:test";
 import {
   createDesktopUnblockerServer,
+  patchAccountReadRpcPayload,
+  patchInitializeRpcPayload,
+  patchRateLimitsRpcPayload,
   patchWhamUsagePayload,
   resolveDesktopUnblockerTarget,
 } from "../../src/codex/desktop-unblocker";
+import {
+  formatDesktopUnblockerStatus,
+  generateCodexShimScript,
+} from "../../src/cli/desktop-unblocker";
 
 describe("desktop unblocker payload patching", () => {
   test("overrides depleted rate limit and hardBlocked states to unblocked", () => {
@@ -44,6 +51,84 @@ describe("desktop unblocker payload patching", () => {
   test("handles malformed JSON gracefully", () => {
     const invalid = "not-json";
     expect(patchWhamUsagePayload(invalid)).toBe(invalid);
+  });
+});
+
+describe("desktop unblocker stdio JSON-RPC patching", () => {
+  test("patches account/rateLimits/read to force ordinaryUsageAllowed: true and clear upsell", () => {
+    const depletedRpc = JSON.stringify({
+      jsonrpc: "2.0",
+      id: 5,
+      result: {
+        ordinaryUsageAllowed: false,
+        rateLimits: {
+          primary: { usedPercent: 100 },
+          credits: { hasCredits: false, unlimited: false, balance: "0" },
+        },
+        rateLimitsByLimitId: {
+          "codex-default": {
+            primary: { usedPercent: 100 },
+            rateLimitReachedType: "hardBlocked",
+          },
+        },
+        rateLimitUpsell: { type: "hardBlocked" },
+      },
+    });
+
+    const patched = JSON.parse(patchRateLimitsRpcPayload(depletedRpc));
+    expect(patched.result.ordinaryUsageAllowed).toBe(true);
+    expect(patched.result.rateLimits.primary.usedPercent).toBe(0);
+    expect(patched.result.rateLimits.credits.hasCredits).toBe(true);
+    expect(patched.result.rateLimits.credits.unlimited).toBe(true);
+    expect(patched.result.rateLimits.credits.balance).toBe("1000");
+    expect(patched.result.rateLimitsByLimitId["codex-default"].primary.usedPercent).toBe(0);
+    expect(patched.result.rateLimitsByLimitId["codex-default"].rateLimitReachedType).toBeNull();
+    expect(patched.result.rateLimitUpsell).toBeNull();
+  });
+
+  test("strips workspaceRouting from account/read to keep loopback routing active", () => {
+    const accountReadRpc = JSON.stringify({
+      jsonrpc: "2.0",
+      id: 3,
+      result: {
+        account: { id: "acc-123" },
+        workspaceRouting: {
+          backendUrl: "https://chatgpt.com/backend-api",
+        },
+      },
+    });
+
+    const patched = JSON.parse(patchAccountReadRpcPayload(accountReadRpc));
+    expect(patched.result.account.id).toBe("acc-123");
+    expect(patched.result.workspaceRouting).toBeUndefined();
+  });
+
+  test("spoofs userAgent in initialize response to legacy compatible version", () => {
+    const initRpc = JSON.stringify({
+      jsonrpc: "2.0",
+      id: 1,
+      result: {
+        userAgent: "codex/0.155.0-alpha.9.2 (darwin; arm64)",
+      },
+    });
+
+    const patched = JSON.parse(patchInitializeRpcPayload(initRpc, "0.155.0-alpha.2.6"));
+    expect(patched.result.userAgent).toBe("codex/0.155.0-alpha.2.6 (darwin; arm64)");
+  });
+
+  test("generateCodexShimScript outputs valid executable JS template", () => {
+    const script = generateCodexShimScript();
+    expect(script).toContain("#!/usr/bin/env node");
+    expect(script).toContain("REAL_CODEX = '/Applications/ChatGPT.app/Contents/Resources/codex'");
+    expect(script).toContain("delete msg.result.workspaceRouting;");
+    expect(script).toContain("msg.result.ordinaryUsageAllowed = true;");
+  });
+
+  test("formatDesktopUnblockerStatus includes CODEX_CLI_PATH", () => {
+    const status = formatDesktopUnblockerStatus(true, "http://localhost:8000/backend-api", "/path/to/shim");
+    expect(status).toContain("active (port 8000)");
+    expect(status).toContain("CODEX_API_BASE_URL: set (http://localhost:8000/backend-api)");
+    expect(status).toContain("CODEX_CLI_PATH: set (/path/to/shim)");
   });
 });
 

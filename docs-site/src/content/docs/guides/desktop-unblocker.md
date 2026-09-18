@@ -21,3 +21,15 @@ The unblocker operates a loopback reverse proxy on `127.0.0.1:8000`:
 - **Trusted destination:** `chatgpt.com` is an allowlist, not a default. `createDesktopUnblockerServer` refuses to start for any other upstream host, because every forwarded request carries the caller's Desktop credentials (`authorization` plus the account headers). A request target that does not resolve to the loopback origin is answered with `400` instead of being forwarded.
 - **Usage Override:** For `GET /backend-api/wham/usage`, it patches `rate_limit.allowed: true` and `credits.has_credits: true`.
 - **Result:** Desktop stops reading its own lockout state, so the upsell modal stays closed and the composer Send button stays enabled. The proxy rewrites the usage payload only: it adds no provider quota, every other Desktop request still goes to `https://chatgpt.com`, and it does not decide which models opencodex serves — that is the [Codex Integration](/guides/codex-integration/) and its [routed models during Codex reserve mode](/guides/codex-integration/#routed-models-during-codex-reserve-mode) section, not this listener.
+
+### Newer Codex Versions (`>= 0.155.0-alpha.5`) & `CODEX_CLI_PATH` Shim
+
+In versions `>= 0.155.0-alpha.5`, ChatGPT Desktop introduces `workspaceRouting` in the stdio JSON-RPC `account/read` response. Electron's internal routing resolver prioritizes `workspaceRouting.backendUrl` over `defaultRouting` (`CODEX_API_BASE_URL`), bypassing port 8000 and sending HTTP requests directly to `https://chatgpt.com`. Furthermore, the composer UI evaluates `account/rateLimits/read` via stdio JSON-RPC; if `ordinaryUsageAllowed` is `false`, the Send button remains locked.
+
+To unblock newer builds:
+1. ChatGPT Desktop reads `CODEX_CLI_PATH` (`launchctl setenv CODEX_CLI_PATH ...`).
+2. A lightweight Node.js shim intercepts the stdio JSON-RPC stream between Electron and `codex app-server`:
+   - Strips `workspaceRouting` from `account/read` so Electron honors `CODEX_API_BASE_URL=http://localhost:8000/backend-api`.
+   - Sets `ordinaryUsageAllowed: true` and clears `rateLimitUpsell` in `account/rateLimits/read`.
+   - Spoofs `initialize` userAgent to `0.155.0-alpha.2.6` for legacy-compatible behavior.
+
