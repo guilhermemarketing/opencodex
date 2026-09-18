@@ -18,5 +18,6 @@ In ChatGPT Desktop's Electron main process (`main-*.js`):
 
 The unblocker operates a loopback reverse proxy on `127.0.0.1:8000`:
 - **Passthrough:** All conversations, streaming SSE tokens, and standard endpoints forward transparently to `https://chatgpt.com`.
+- **Trusted destination:** `chatgpt.com` is an allowlist, not a default. `createDesktopUnblockerServer` refuses to start for any other upstream host, because every forwarded request carries the caller's Desktop credentials (`authorization` plus the account headers). A request target that does not resolve to the loopback origin is answered with `400` instead of being forwarded.
 - **Usage Override:** For `GET /backend-api/wham/usage`, it patches `rate_limit.allowed: true` and `credits.has_credits: true`.
-- **Result:** Desktop removes the upsell modal and keeps the composer Send button active. Messages route smoothly through opencodex to configured third-party models.
+- **Result:** Desktop stops reading its own lockout state, so the upsell modal stays closed and the composer Send button stays enabled. The proxy rewrites the usage payload only: it adds no provider quota, every other Desktop request still goes to `https://chatgpt.com`, and it does not decide which models opencodex serves — that is the [Codex Integration](/guides/codex-integration/) and its [routed models during Codex reserve mode](/guides/codex-integration/#routed-models-during-codex-reserve-mode) section, not this listener.
